@@ -201,7 +201,7 @@ function transcribe(tracks, onProgress) {
 }
 
 const processing = new Set();
-// tracks: [{ label: 'You' | 'Others' | null, pcm: Float32Array }]
+// tracks: [{ label: 'Me' | 'Audio' | null, pcm: Float32Array }]
 async function processMeeting(id, tracks) {
   if (processing.has(id)) return loadMeeting(id);
   processing.add(id);
@@ -236,7 +236,7 @@ async function processMeeting(id, tracks) {
       transcript: m.transcript,
       startedAt: m.startedAt,
       durationSec: m.durationSec,
-      labeled: /^\[[\d:]+\] (You|Others):/m.test(m.transcript)
+      labeled: /^\[[\d:]+\] (Me|Audio):/m.test(m.transcript)
     });
     const cur = loadMeeting(id);
     return saveMeeting({

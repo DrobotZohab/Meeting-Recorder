@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light dark;
   --bg: #ffffff;
   --side: #f7f7f5;
   --hover: rgba(55, 53, 47, 0.06);
@@ -31,12 +32,12 @@
     --line: rgba(255, 255, 255, 0.1);
     --callout: #252525;
     --red: #ff7369;
-    --red-bg: #522e2a;
+    --red-bg: rgba(255, 115, 105, 0.14);
     --green: #4dab9a;
-    --green-bg: #2b593f;
+    --green-bg: rgba(77, 171, 154, 0.16);
     --blue: #529cca;
-    --blue-bg: #28456c;
-    --yellow-bg: #5c4b23;
+    --blue-bg: rgba(82, 156, 202, 0.18);
+    --yellow-bg: rgba(223, 171, 1, 0.15);
     --yellow: #dfab01;
     --gray-bg: #373737;
     --shadow: 0 0 0 1px rgba(255,255,255,.08), 0 3px 6px rgba(0,0,0,.3), 0 9px 24px rgba(0,0,0,.4);
@@ -243,6 +244,15 @@ details.toggle > summary .small-btn { font-size: 13px; font-weight: 500; padding
 details.toggle > summary .small-btn svg { transform: none; width: 14px; height: 14px; }
 details.toggle > summary .small-btn:hover { color: var(--text); }
 .transcript { white-space: pre-wrap; color: var(--text); padding: 8px 0 0 22px; line-height: 1.7; font-size: 14px; user-select: text; }
+.transcript .who { font-weight: 600; margin-right: 6px; }
+.transcript .who.you { color: var(--blue); }
+.transcript .who.others { color: var(--green); }
+.sys-test { margin: -6px 0 16px; padding: 10px 12px; border-radius: 6px; background: var(--callout); color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sys-test[hidden] { display: none; }
+.sys-test.ok { background: var(--green-bg); color: var(--green); }
+.sys-test.bad { background: var(--red-bg); color: var(--red); }
+.mini-meter { display: inline-block; width: 120px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.mini-meter i { display: block; height: 100%; width: 0; background: var(--green); transition: width .08s; }
 .transcript .ts { color: var(--faint); font-variant-numeric: tabular-nums; margin-right: 6px; }
 
 /* processing */

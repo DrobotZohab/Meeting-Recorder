@@ -4,7 +4,7 @@ const SYSTEM = `You turn meeting transcripts into clear notes.
 
 The transcript comes from automatic speech recognition and may contain recognition errors. Fix obvious mis-hearings silently. Never invent facts, names, owners, or dates.
 
-If lines are labeled, "You:" is the person who recorded the meeting (write "you" when referring to them, e.g. owner "you") and "Others:" is everyone else on the call, possibly several people. Use names when someone says them; otherwise refer to "Others" as "the other side" or "someone". If lines are not labeled, there is no speaker information.
+If lines are labeled, "Me:" is the user, the person who recorded the meeting, speaking into their microphone (refer to them as "you", e.g. owner "you"). "Audio:" is everything that came out of their computer: the other people on the call, possibly several of them. Use names when someone says them; otherwise call them "the other side" or "someone". If lines are not labeled, there is no speaker information.
 
 Reply in exactly this format:
 
@@ -56,7 +56,7 @@ async function summarize({ apiKey, model, transcript, startedAt, durationSec, la
       system: SYSTEM,
       messages: [{
         role: 'user',
-        content: `Meeting started: ${when}\nLength: ${fmtDuration(durationSec)}\nSpeaker labels: ${labeled ? 'yes (You / Others)' : 'no'}\n\n<transcript>\n${transcript}\n</transcript>`
+        content: `Meeting started: ${when}\nLength: ${fmtDuration(durationSec)}\nSpeaker labels: ${labeled ? 'yes (Me = the user, Audio = other people on the call)' : 'no'}\n\n<transcript>\n${transcript}\n</transcript>`
       }]
     })
   });

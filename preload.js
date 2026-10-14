@@ -16,11 +16,11 @@ contextBridge.exposeInMainWorld('api', {
   remove: (id) => ipcRenderer.invoke('meetings:delete', id),
   show: (id) => ipcRenderer.invoke('meetings:show', id),
   process: (id, pcm) => ipcRenderer.invoke('meetings:process', id, pcm),
-  readAudio: (id) => ipcRenderer.invoke('meetings:audio', id),
+  readAudio: (id, kind) => ipcRenderer.invoke('meetings:audio', id, kind),
   setError: (id, message) => ipcRenderer.invoke('meetings:error', id, message),
 
-  recStart: () => ipcRenderer.invoke('rec:start'),
-  recChunk: (bytes) => ipcRenderer.invoke('rec:chunk', bytes),
+  recStart: (sources) => ipcRenderer.invoke('rec:start', sources),
+  recChunk: (kind, bytes) => ipcRenderer.invoke('rec:chunk', kind, bytes),
   recStop: () => ipcRenderer.invoke('rec:stop'),
 
   getSettings: () => ipcRenderer.invoke('settings:get'),

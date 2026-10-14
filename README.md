@@ -24,6 +24,10 @@ SmartScreen may say "Windows protected your PC". Click **More info > Run anyway*
 2. **New meeting:** tell people you're recording, tick the box, hit **Start recording**.
 3. **Stop:** it transcribes on your computer, then Claude writes the summary, decisions and action items.
 
+The transcript labels each line **Me** (your microphone) or **Audio** (sound from your computer, like the other people on the call). Wear headphones for the cleanest labels; on speakers your mic also hears the call.
+
+If the other people aren't being recorded, click **Test audio** next to "Other people" on the New meeting page. It tells you what's blocking it.
+
 Everything is saved in `Documents/Meeting Recordings`, one folder per meeting.
 
 ## Cost

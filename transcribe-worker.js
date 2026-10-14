@@ -1,5 +1,6 @@
 // Runs in an Electron utility process so transcription never freezes the window.
-// Input: a file of raw 16 kHz mono Float32 samples. Output: timestamped transcript text.
+// Input: one or more tracks of raw 16 kHz mono Float32 samples, each with an optional
+// speaker label ("Me" = your mic, "Audio" = computer audio). Output: timestamped text.
 const fs = require('fs');
 
 const SR = 16000;
@@ -40,28 +41,52 @@ const ts = (sec) => {
 // Whisper's classic hallucinations on near-silence.
 const JUNK = /^(\s*(thank you\.?|thanks for watching\.?|you|\.|\[.*?\]|\(.*?\))\s*)$/i;
 
-async function run({ job, pcmFile, model, cacheDir }) {
+const words = (t) => new Set(t.toLowerCase().replace(/[^a-z0-9' ]/g, ' ').split(/\s+/).filter((w) => w.length > 1));
+function similar(a, b) {
+  const A = words(a); const B = words(b);
+  if (!A.size || !B.size) return false;
+  let both = 0;
+  for (const w of A) if (B.has(w)) both++;
+  return both / Math.min(A.size, B.size) >= 0.6;
+}
+
+// On speakers, the mic also hears the computer audio. Drop "Me" lines that just echo an "Audio" line.
+function dropEchoes(segs) {
+  const others = segs.filter((s) => s.label === 'Audio');
+  return segs.filter((s) => s.label !== 'Me' ||
+    !others.some((o) => Math.abs(o.t - s.t) <= 4 && similar(o.text, s.text)));
+}
+
+async function run({ job, tracks, model, cacheDir }) {
   const post = (msg) => process.parentPort.postMessage({ job, ...msg });
   try {
-    const buf = fs.readFileSync(pcmFile);
-    const audio = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+    const audio = tracks.map((t) => {
+      const buf = fs.readFileSync(t.pcmFile);
+      return { label: t.label || null, data: new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)) };
+    });
     const asr = await getPipe(model, cacheDir, post);
 
-    const lines = [];
-    const total = Math.ceil(audio.length / WINDOW);
-    for (let i = 0; i < total; i++) {
-      const start = i * WINDOW;
-      const slice = audio.subarray(start, Math.min(audio.length, start + WINDOW));
-      post({ type: 'progress', stage: 'transcribing', pct: Math.round((i / total) * 100) });
-      if (slice.length < SR / 2 || rms(slice) < 0.004) continue; // skip silence
-      const out = await asr(slice, { return_timestamps: true });
-      const chunks = out.chunks && out.chunks.length ? out.chunks : [{ text: out.text, timestamp: [0] }];
-      for (const c of chunks) {
-        const text = (c.text || '').trim();
-        if (!text || JUNK.test(text)) continue;
-        lines.push(`[${ts(start / SR + (c.timestamp?.[0] || 0))}] ${text}`);
+    const total = audio.reduce((n, a) => n + Math.ceil(a.data.length / WINDOW), 0);
+    let done = 0;
+    const segs = [];
+    for (const { label, data } of audio) {
+      for (let start = 0; start < data.length; start += WINDOW) {
+        post({ type: 'progress', stage: 'transcribing', pct: Math.round((done++ / total) * 100) });
+        const slice = data.subarray(start, Math.min(data.length, start + WINDOW));
+        if (slice.length < SR / 2 || rms(slice) < 0.004) continue; // skip silence
+        const out = await asr(slice, { return_timestamps: true });
+        const chunks = out.chunks && out.chunks.length ? out.chunks : [{ text: out.text, timestamp: [0] }];
+        for (const c of chunks) {
+          const text = (c.text || '').trim();
+          if (!text || JUNK.test(text)) continue;
+          segs.push({ t: start / SR + (c.timestamp?.[0] || 0), label, text });
+        }
       }
     }
+
+    const lines = dropEchoes(segs)
+      .sort((a, b) => a.t - b.t)
+      .map((s) => `[${ts(s.t)}] ${s.label ? `${s.label}: ` : ''}${s.text}`);
     post({ type: 'progress', stage: 'transcribing', pct: 100 });
     post({ type: 'done', text: lines.join('\n') });
   } catch (err) {
@@ -77,4 +102,6 @@ async function run({ job, pcmFile, model, cacheDir }) {
 
 // Jobs run one at a time.
 let queue = Promise.resolve();
-process.parentPort.on('message', (e) => { queue = queue.then(() => run(e.data)); });
+if (process.parentPort) process.parentPort.on('message', (e) => { queue = queue.then(() => run(e.data)); });
+
+module.exports = { dropEchoes, similar }; // for tests

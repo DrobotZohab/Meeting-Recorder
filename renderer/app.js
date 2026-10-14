@@ -143,8 +143,10 @@ function renderNewPage() {
       <div class="prop-k">${ICON.status}Status</div><div class="prop-v"><span class="tag gray">Not started</span></div>
       <div class="prop-k">${ICON.mic}Microphone</div><div class="prop-v"><select id="micSel"><option value="">Loading...</option></select></div>
       <div class="prop-k">${ICON.speaker}Other people</div>
-      <div class="prop-v"><input type="checkbox" id="sysToggle" class="switch"><span class="dim" id="sysLabel"></span></div>
+      <div class="prop-v"><input type="checkbox" id="sysToggle" class="switch"><span class="dim" id="sysLabel"></span>
+        <button class="text-btn" id="sysTestBtn">Test audio</button></div>
     </div>
+    <div id="sysTest" class="sys-test" hidden></div>
 
     <div class="callout">
       ${ICON.chat}
@@ -203,6 +205,7 @@ function renderNewPage() {
   const sysLabel = () => { $('#sysLabel').textContent = sys.checked ? 'Recorded from your speakers' : 'Off: only your mic'; };
   sysLabel();
   sys.addEventListener('change', () => { pref.set('systemAudio', sys.checked); sysLabel(); });
+  $('#sysTestBtn').addEventListener('click', () => { $('#sysTest').hidden = false; testSystemAudio(); });
 
   loadMics();
   setTimeout(() => $('h1.title').focus(), 0);
@@ -226,6 +229,79 @@ async function loadMics() {
   sel.addEventListener('change', () => pref.set('micId', sel.value));
 }
 
+// ---------- system audio ----------
+// Returns { stream } or { error } with a message that says what to fix.
+async function openSystemAudio() {
+  const mac = state.platform === 'darwin';
+  try {
+    const sys = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    sys.getVideoTracks().forEach((t) => t.stop());
+    if (!sys.getAudioTracks().length) {
+      sys.getTracks().forEach((t) => t.stop());
+      return { error: mac
+        ? 'macOS gave no audio. Open System Settings > Privacy & Security > Screen & System Audio Recording, remove Meetings with "-", then quit and reopen the app and allow it again.'
+        : 'Windows returned no audio from your speakers. Check that your sound output device is on and not muted.' };
+    }
+    return { stream: sys };
+  } catch (e) {
+    console.error('system audio', e);
+    if (mac) {
+      return { error: 'macOS blocked it. Allow Meetings under System Settings > Privacy & Security > Screen & System Audio Recording (remove and re-add it after updating the app), then quit and reopen.' };
+    }
+    return { error: `Couldn't capture computer audio (${e.name || 'error'}). Try restarting the app.` };
+  }
+}
+
+// Listens to computer audio for a few seconds and reports whether anything came through.
+async function testSystemAudio() {
+  const out = $('#sysTest');
+  const btn = $('#sysTestBtn');
+  if (!out || !btn) return;
+  btn.disabled = true;
+  out.className = 'sys-test';
+  out.textContent = 'Starting...';
+  const r = await openSystemAudio();
+  if (r.error) {
+    out.className = 'sys-test bad';
+    out.textContent = r.error;
+    btn.disabled = false;
+    return;
+  }
+  const ctx = new AudioContext();
+  const an = ctx.createAnalyser();
+  an.fftSize = 1024;
+  ctx.createMediaStreamSource(r.stream).connect(an);
+  const buf = new Float32Array(an.fftSize);
+  let peak = 0;
+  const end = Date.now() + 6000;
+  out.innerHTML = 'Play something on your computer now (a YouTube video works) <span class="mini-meter"><i></i></span>';
+  await new Promise((resolve) => {
+    const loop = () => {
+      an.getFloatTimeDomainData(buf);
+      let p = 0;
+      for (const v of buf) p = Math.max(p, Math.abs(v));
+      peak = Math.max(peak, p);
+      const bar = out.querySelector('.mini-meter i');
+      if (bar) bar.style.width = `${Math.min(100, p * 300)}%`;
+      if (Date.now() < end && peak < 0.02) requestAnimationFrame(loop);
+      else resolve();
+    };
+    loop();
+  });
+  r.stream.getTracks().forEach((t) => t.stop());
+  ctx.close();
+  btn.disabled = false;
+  if (peak >= 0.02) {
+    out.className = 'sys-test ok';
+    out.textContent = 'Working. The app can hear your computer audio.';
+  } else {
+    out.className = 'sys-test bad';
+    out.textContent = state.platform === 'darwin'
+      ? "Heard nothing. Make sure something was actually playing. If it was, macOS is blocking it: re-add Meetings under Screen & System Audio Recording, then reopen the app."
+      : "Heard nothing. Make sure something was actually playing and your volume isn't muted, then test again.";
+  }
+}
+
 // ---------- recording ----------
 async function startRecording() {
   const micId = $('#micSel')?.value || '';
@@ -237,11 +313,16 @@ async function startRecording() {
   hint('Starting...');
 
   const ctx = new AudioContext();
-  const dest = ctx.createMediaStreamDestination();
+  const dest = ctx.createMediaStreamDestination(); // everyone mixed, for playback
   dest.channelCount = 1;
+  const split = ctx.createMediaStreamDestination(); // left = you, right = others, for labels
+  split.channelCount = 2;
+  const merger = ctx.createChannelMerger(2);
+  merger.connect(split);
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 512;
   const streams = [];
+  const sources = { mic: false, others: false };
   let got = false;
 
   if (micId) {
@@ -251,28 +332,21 @@ async function startRecording() {
       });
       streams.push(mic);
       const src = ctx.createMediaStreamSource(mic);
-      src.connect(dest); src.connect(analyser);
-      got = true;
+      src.connect(dest); src.connect(analyser); src.connect(merger, 0, 0);
+      got = sources.mic = true;
     } catch (e) { console.error('mic', e); hint('Could not open the microphone.'); }
   }
 
   if (wantSys) {
-    try {
-      const sys = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      sys.getVideoTracks().forEach((t) => t.stop());
-      if (sys.getAudioTracks().length) {
-        streams.push(sys);
-        const src = ctx.createMediaStreamSource(new MediaStream(sys.getAudioTracks()));
-        src.connect(dest); src.connect(analyser);
-        got = true;
-      } else {
-        toast(state.platform === 'darwin' ? 'No system audio. Allow Screen Recording in System Settings.' : 'No system audio found.');
-      }
-    } catch (e) {
-      console.error('system', e);
-      toast(state.platform === 'darwin'
-        ? 'Allow Screen Recording for this app in System Settings, then restart it.'
-        : 'Could not capture system audio.');
+    const r = await openSystemAudio();
+    if (r.stream) {
+      streams.push(r.stream);
+      const src = ctx.createMediaStreamSource(new MediaStream(r.stream.getAudioTracks()));
+      src.connect(dest); src.connect(analyser); src.connect(merger, 0, 1);
+      got = sources.others = true;
+    } else {
+      hint(r.error);
+      if (micId && !confirm(`${r.error}\n\nRecord only your microphone instead?`)) got = false;
     }
   }
 
@@ -280,21 +354,27 @@ async function startRecording() {
     streams.forEach((s) => s.getTracks().forEach((t) => t.stop()));
     ctx.close();
     const b = $('#recBtn'); if (b) b.disabled = false;
-    hint('Nothing to record. Check your sources.');
+    if (!wantSys || !micId) hint('Nothing to record. Check your sources.');
     return;
   }
 
-  const meeting = await api.recStart();
+  const meeting = await api.recStart(sources);
   if (typedTitle) await api.rename(meeting.id, typedTitle);
   const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-  const mr = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 48000 });
   let queue = Promise.resolve();
-  mr.ondataavailable = (ev) => {
-    if (!ev.data || !ev.data.size) return;
-    queue = queue.then(async () => api.recChunk(new Uint8Array(await ev.data.arrayBuffer())));
+  const recorder = (stream, kind, bps) => {
+    const r = new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: bps });
+    r.ondataavailable = (ev) => {
+      if (!ev.data || !ev.data.size) return;
+      queue = queue.then(async () => api.recChunk(kind, new Uint8Array(await ev.data.arrayBuffer())));
+    };
+    r.done = new Promise((res) => { r.onstop = res; });
+    r.start(1000);
+    return r;
   };
-  const stopped = new Promise((res) => { mr.onstop = res; });
-  mr.start(1000);
+  const recs = [recorder(dest.stream, 'audio', 48000), recorder(split.stream, 'tracks', 64000)];
+  const mr = { get state() { return recs[0].state; }, stop: () => recs.forEach((r) => r.state !== 'inactive' && r.stop()) };
+  const stopped = Promise.all(recs.map((r) => r.done));
 
   state.rec = { id: meeting.id, mr, ctx, streams, analyser, started: Date.now(), stopped, queue: () => queue, raf: 0, tick: 0 };
   state.rec.tick = setInterval(tickRecording, 250);
@@ -352,10 +432,37 @@ function meterLoop() {
 }
 
 // ---------- transcription + summary ----------
+async function readBytes(id, kind) {
+  const data = await api.readAudio(id, kind);
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+}
+
+// Returns [{ label, pcm }] ready for the transcriber.
+async function decodeTracks(m) {
+  const src = m.sources || {};
+  if (src.mic || src.others) {
+    try {
+      const both = src.mic && src.others;
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      try {
+        const audio = await ctx.decodeAudioData(await readBytes(m.id, 'tracks'));
+        const ch = (i) => audio.getChannelData(Math.min(i, audio.numberOfChannels - 1)).slice();
+        const tracks = [];
+        if (src.mic) tracks.push({ label: both ? 'Me' : null, pcm: ch(0) });
+        if (src.others) tracks.push({ label: both ? 'Audio' : null, pcm: ch(1) });
+        return tracks;
+      } finally { ctx.close(); }
+    } catch (e) {
+      console.warn('No separate tracks, using the mixed recording', e);
+    }
+  }
+  return [{ label: null, pcm: await decodeToPcm(m.id) }];
+}
+
 async function decodeToPcm(id) {
   let bytes;
   try {
-    const data = await api.readAudio(id);
+    const data = await api.readAudio(id, 'audio');
     bytes = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
   } catch (e) {
     throw new Error(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
@@ -381,7 +488,7 @@ async function runProcess(id, { transcribe }) {
     if (transcribe) {
       state.progress[id] = { stage: 'preparing' };
       updateMeetingFromCache(id, { status: 'transcribing', error: null });
-      pcm = await decodeToPcm(id);
+      pcm = await decodeTracks(await api.get(id));
     }
     await api.process(id, pcm);
   } catch (e) {
@@ -526,8 +633,10 @@ function renderMeetingPage(full = false) {
 
   if (m.transcript) {
     const lines = m.transcript.split('\n').map((l) => {
-      const mt = l.match(/^\[([\d:]+)\]\s*(.*)$/);
-      return mt ? `<span class="ts">${esc(mt[1])}</span>${esc(mt[2])}` : esc(l);
+      const mt = l.match(/^\[([\d:]+)\]\s*(?:(Me|Audio):\s*)?(.*)$/);
+      if (!mt) return esc(l);
+      const who = mt[2] ? `<span class="who ${mt[2] === 'Me' ? 'you' : 'others'}">${mt[2]}</span>` : '';
+      return `<span class="ts">${esc(mt[1])}</span>${who}${esc(mt[3])}`;
     }).join('\n');
     const wasOpen = $('#transcript')?.open;
     html += `<details class="toggle" id="transcript"${wasOpen ? ' open' : ''}><summary>${ICON.chev}Transcript
@@ -627,6 +736,7 @@ function openSettings() {
   $('#claudeModel').value = s.claudeModel;
   $('#whisperModel').value = s.whisperModel;
   $('#autoSummarize').checked = !!s.autoSummarize;
+  $('#theme').value = s.theme || 'dark';
 }
 function setKeyState(text, kind = '') {
   const el = $('#keyState');
@@ -668,6 +778,7 @@ function wireSettings() {
       if (id === 'claudeModel' && state.settings.hasApiKey) testKey(); // make sure the key can use the new model
     });
   }
+  $('#theme').addEventListener('change', async (e) => { state.settings = await api.setSettings({ theme: e.target.value }); });
   $('#autoSummarize').addEventListener('change', async (e) => { state.settings = await api.setSettings({ autoSummarize: e.target.checked }); });
 }
 
