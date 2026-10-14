@@ -1,7 +1,7 @@
 {
   "name": "meeting-recorder",
   "productName": "Meetings",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Record meetings, transcribe them on your computer, and get Claude-written notes.",
   "main": "main.js",
   "author": "Zohab",

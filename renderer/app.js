@@ -352,9 +352,13 @@ function meterLoop() {
 
 // ---------- transcription + summary ----------
 async function decodeToPcm(id) {
-  const res = await fetch(`media://audio/${encodeURIComponent(id)}`);
-  if (!res.ok) throw new Error('Could not read the recording.');
-  const bytes = await res.arrayBuffer();
+  let bytes;
+  try {
+    const data = await api.readAudio(id);
+    bytes = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  } catch (e) {
+    throw new Error(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
+  }
   const ctx = new AudioContext({ sampleRate: 16000 });
   try {
     const audio = await ctx.decodeAudioData(bytes);
@@ -381,8 +385,8 @@ async function runProcess(id, { transcribe }) {
     await api.process(id, pcm);
   } catch (e) {
     console.error(e);
-    toast(e.message || 'Something went wrong.');
-    const m = await api.get(id);
+    // Keep the error on the page (with a Try again button) instead of a toast that vanishes.
+    const m = await api.setError(id, e.message || 'Something went wrong.');
     if (m && state.current === id) { state.meeting = m; renderMeetingPage(); }
   } finally {
     delete state.progress[id];
@@ -502,8 +506,8 @@ function renderMeetingPage(full = false) {
           : p?.stage === 'loading' ? 'Loading the speech model...' : 'Transcribing on your computer...';
     html += `<div class="working">
       <div class="label"><span class="spinner"></span>${label}</div>
-      <div class="bar ${pct === null ? 'indet' : ''}"><i style="width:${pct ?? 0}%"></i></div>
-      <div class="skeleton"><i style="width:40%"></i><i style="width:92%"></i><i style="width:86%"></i><i style="width:64%"></i></div>
+      <div class="bar ${pct === null ? 'indet' : ''}"><i data-w="${pct ?? 0}"></i></div>
+      <div class="skeleton"><i data-w="40"></i><i data-w="92"></i><i data-w="86"></i><i data-w="64"></i></div>
     </div>`;
   } else if (m.summary) {
     html += `<div class="content">${renderMarkdown(m.summary)}</div>`;
@@ -530,6 +534,8 @@ function renderMeetingPage(full = false) {
       <div class="transcript">${lines}</div></details>`;
   }
   body.innerHTML = html;
+  // Widths are set from script because the page's security policy blocks inline style="" attributes.
+  body.querySelectorAll('[data-w]').forEach((el) => { el.style.width = `${el.dataset.w}%`; });
 
   body.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', (e) => {
     const act = b.dataset.act;

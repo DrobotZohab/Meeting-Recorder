@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('api', {
   remove: (id) => ipcRenderer.invoke('meetings:delete', id),
   show: (id) => ipcRenderer.invoke('meetings:show', id),
   process: (id, pcm) => ipcRenderer.invoke('meetings:process', id, pcm),
+  readAudio: (id) => ipcRenderer.invoke('meetings:audio', id),
+  setError: (id, message) => ipcRenderer.invoke('meetings:error', id, message),
 
   recStart: () => ipcRenderer.invoke('rec:start'),
   recChunk: (bytes) => ipcRenderer.invoke('rec:chunk', bytes),
