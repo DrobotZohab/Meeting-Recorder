@@ -287,6 +287,19 @@ app.whenReady().then(() => {
     return true;
   });
   ipcMain.handle('meetings:show', (_e, id) => shell.showItemInFolder(audioPath(id)));
+  // The page can't fetch() the media:// scheme (Chromium blocks it as cross-origin),
+  // so recordings are handed over directly for transcription.
+  ipcMain.handle('meetings:audio', (_e, id) => {
+    const file = audioPath(id);
+    if (!fs.existsSync(file) || fs.statSync(file).size === 0) throw new Error('The recording file is missing or empty.');
+    return fs.readFileSync(file);
+  });
+  ipcMain.handle('meetings:error', (_e, id, message) => {
+    const m = loadMeeting(id);
+    if (!m) return null;
+    const status = ['transcribing', 'summarizing'].includes(m.status) ? (m.transcript ? 'transcribed' : 'recorded') : m.status;
+    return saveMeeting({ ...m, status, error: String(message).slice(0, 500) });
+  });
   ipcMain.handle('meetings:process', (_e, id, pcm) => processMeeting(id, pcm || null));
 
   ipcMain.handle('rec:start', async () => {
