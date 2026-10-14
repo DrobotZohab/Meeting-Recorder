@@ -47,6 +47,7 @@ function fmtDate(iso) {
   if (diff === 1) return `Yesterday, ${d.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`;
   return full;
 }
+const fmtFullDate = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 function fmtDuration(sec) {
   sec = Math.max(0, Math.round(sec || 0));
@@ -530,7 +531,7 @@ function renderMeetingPage(full = false) {
     }).join('\n');
     const wasOpen = $('#transcript')?.open;
     html += `<details class="toggle" id="transcript"${wasOpen ? ' open' : ''}><summary>${ICON.chev}Transcript
-      <button class="text-btn" data-act="copyTranscript">Copy</button></summary>
+      <button class="btn small-btn" data-act="copyTranscript" title="Copy the full transcript">${ICON.copy}Copy transcript</button></summary>
       <div class="transcript">${lines}</div></details>`;
   }
   body.innerHTML = html;
@@ -540,7 +541,7 @@ function renderMeetingPage(full = false) {
   body.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', (e) => {
     const act = b.dataset.act;
     if (act === 'copyTranscript') {
-      e.preventDefault(); // don't open/close the toggle
+      e.preventDefault(); // don't open or close the transcript toggle
       copyTranscript();
       return;
     }
@@ -571,7 +572,7 @@ function copyNotes() {
   const m = state.meeting;
   if (!m) return;
   const end = m.endedAt ? ` – ${fmtTime(m.endedAt)}` : '';
-  const text = `# ${m.title}\n${fmtDate(m.startedAt)}, ${fmtTime(m.startedAt)}${end} (${fmtDuration(m.durationSec)})\n\n${m.summary || m.transcript || ''}`;
+  const text = `# ${m.title}\n${fmtFullDate(m.startedAt)}, ${fmtTime(m.startedAt)}${end} (${fmtDuration(m.durationSec)})\n\n${m.summary || m.transcript || ''}`;
   api.copy(text);
   toast('Notes copied');
 }
@@ -579,7 +580,7 @@ function copyNotes() {
 function copyTranscript() {
   const m = state.meeting;
   if (!m?.transcript) return;
-  api.copy(`${m.title} (${fmtDate(m.startedAt)}, ${fmtTime(m.startedAt)})\n\n${m.transcript}`);
+  api.copy(`${m.title}\n${fmtFullDate(m.startedAt)}, ${fmtTime(m.startedAt)}\n\n${m.transcript}`);
   toast('Transcript copied');
 }
 
