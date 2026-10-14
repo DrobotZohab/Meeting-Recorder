@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('api', {
   openFolder: () => ipcRenderer.invoke('open-folder'),
   openUrl: (url) => ipcRenderer.invoke('open-url', url),
 
+  updateState: () => ipcRenderer.invoke('update:state'),
+  updateNow: () => ipcRenderer.invoke('update:act'),
+  onUpdate: on('update'),
+
   onMeeting: on('meeting-updated'),
   onProgress: on('progress')
 });

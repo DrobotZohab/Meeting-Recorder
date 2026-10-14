@@ -34,12 +34,13 @@ Everything is saved in `Documents/Meeting Recordings`, one folder per meeting.
 - Transcription: free, runs locally (the speech model downloads once, about 80 MB).
 - Summary: Claude Haiku 5.5 by default, usually well under a cent per meeting.
 
+## Updates
+The app checks for updates on its own.
+- **Windows:** downloads in the background. Click **Restart to update** in the sidebar, or it installs next time you close the app.
+- **Mac:** shows **Update available** in the sidebar, which opens the new download.
+
 ## Make a new release
-```
-git tag v1.0.1
-git push origin v1.0.1
-```
-GitHub Actions builds both installers and attaches them to the release (about 10 minutes). Bump `version` in `package.json` to match the tag.
+Bump `version` in `package.json` and push to `main`. GitHub Actions builds both installers and publishes the release automatically (about 3 minutes). You can also start it by hand from the Actions tab.
 
 ## Run from source
 ```

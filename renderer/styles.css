@@ -100,6 +100,14 @@ nav { flex: 1; overflow-y: auto; min-height: 0; }
 .item .time { font-size: 12px; color: var(--faint); }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); animation: pulse 1.2s infinite; flex-shrink: 0; }
 .empty-nav { padding: 10px; color: var(--faint); font-size: 13px; }
+.update-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; margin: 6px 0 2px; padding: 8px 10px;
+  border: 0; border-radius: 6px; background: var(--blue-bg); color: var(--blue); font-weight: 500;
+  text-align: left; cursor: pointer;
+}
+.update-btn[hidden] { display: none; }
+.update-btn:disabled { cursor: default; opacity: .8; }
+.update-btn:not(:disabled):hover { filter: brightness(1.08); }
 .side-bottom { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 6px; }
 @keyframes pulse { 50% { opacity: .35; } }
 

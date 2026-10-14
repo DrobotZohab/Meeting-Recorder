@@ -2,8 +2,12 @@ name: Release
 
 # Push a tag like v1.0.0 (or click "Run workflow") to build the
 # Windows installer and Mac app and attach them to a GitHub Release.
+# Runs by itself whenever the version in package.json changes on main,
+# or by hand from the Actions tab ("Run workflow").
 on:
   push:
+    branches: [main]
+    paths: [package.json]
     tags: ['v*']
   workflow_dispatch:
 
@@ -18,7 +22,10 @@ jobs:
         include:
           - os: windows-latest
             target: --win --x64
-            files: dist/*.exe
+            files: |
+              dist/*.exe
+              dist/*.exe.blockmap
+              dist/latest.yml
           - os: macos-latest
             target: --mac --arm64
             files: dist/*.dmg

@@ -811,6 +811,23 @@ async function boot() {
     }
   });
 
+  const showUpdate = (u) => {
+    const b = $('#updateBtn');
+    if (!u || !['downloading', 'ready', 'available'].includes(u.status)) { b.hidden = true; return; }
+    b.hidden = false;
+    b.disabled = u.status === 'downloading';
+    b.textContent = u.status === 'downloading' ? `Downloading update ${u.version}...`
+      : u.status === 'ready' ? `Restart to update to ${u.version}`
+        : `Update ${u.version} available: download`;
+  };
+  api.onUpdate(showUpdate);
+  showUpdate(await api.updateState());
+  $('#updateBtn').addEventListener('click', async () => {
+    const r = await api.updateNow();
+    if (r === 'busy') toast('Stop the recording first, then update.');
+    if (r === 'opened') toast('Download the .dmg and drag it into Applications.');
+  });
+
   await refreshList();
   open(null);
 }

@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { summarize, checkKey } = require('./summarize');
+const updater = require('./updater');
 
 // macOS: let Chromium capture system audio through ScreenCaptureKit (macOS 13+).
 if (process.platform === 'darwin') {
@@ -363,6 +364,11 @@ app.whenReady().then(() => {
     if ('theme' in patch) applyTheme(s.theme);
     return publicSettings();
   });
+  ipcMain.handle('update:state', () => ({ ...updater.getState(), current: app.getVersion() }));
+  ipcMain.handle('update:act', () => {
+    if (rec) return 'busy'; // never restart in the middle of a recording
+    return updater.act();
+  });
   ipcMain.handle('settings:checkKey', () => checkKey({ apiKey: getApiKey(), model: getSettings().claudeModel }));
   ipcMain.handle('copy', (_e, text) => clipboard.writeText(String(text)));
   ipcMain.handle('open-folder', () => {
@@ -376,6 +382,7 @@ app.whenReady().then(() => {
   fs.mkdirSync(ROOT(), { recursive: true });
   recoverStale();
   createWindow();
+  updater.start((s) => notify('update', { ...s, current: app.getVersion() }));
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
