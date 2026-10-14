@@ -18,8 +18,10 @@ jobs:
         include:
           - os: windows-latest
             target: --win --x64
+            files: dist/*.exe
           - os: macos-latest
             target: --mac --arm64
+            files: dist/*.dmg
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -35,8 +37,41 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build and publish
-        run: npx electron-builder ${{ matrix.target }} --publish always
+      # Each build only produces its installer. Publishing happens once, below,
+      # so the two builds never race to create the same release.
+      - name: Build
+        run: npx electron-builder ${{ matrix.target }} --publish never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.os }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: v
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.v.outputs.version }}
+          name: Meetings ${{ steps.v.outputs.version }}
+          make_latest: true
+          files: installers/*
+          body: |
+            **Windows:** download the `.exe` and run it. If SmartScreen appears, click More info > Run anyway.
+            **Mac (Apple Silicon):** download the `.dmg`. First launch: System Settings > Privacy & Security > Open Anyway.
