@@ -277,6 +277,10 @@ details.toggle > summary .small-btn:hover { color: var(--text); }
 }
 .key-row { display: flex; gap: 8px; align-items: flex-end; }
 .key-row input { flex: 1; }
+.key-status { display: flex; align-items: center; gap: 8px; margin-top: 6px; min-height: 22px; }
+.key-status .small { margin-top: 0; }
+#keyState.ok { color: var(--green); }
+#keyState.bad { color: var(--red); }
 .row-between { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .muted { color: var(--muted); margin: 0; }
 .small { font-size: 12px; margin-top: 6px; }

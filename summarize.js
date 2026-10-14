@@ -72,4 +72,25 @@ async function summarize({ apiKey, model, transcript, startedAt, durationSec, fe
   return parse(text);
 }
 
-module.exports = { summarize, parse, SYSTEM };
+// Checks a key without spending tokens: looks up the summary model with it.
+async function checkKey({ apiKey, model, fetchImpl = fetch }) {
+  if (!apiKey) return { ok: false, message: 'No key saved yet.' };
+  let res;
+  try {
+    res = await fetchImpl(`https://api.anthropic.com/v1/models/${encodeURIComponent(model)}`, {
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+    });
+  } catch {
+    return { ok: false, message: "Couldn't reach Claude. Check your internet connection." };
+  }
+  let body = null;
+  try { body = await res.json(); } catch { /* ignore */ }
+  if (res.ok) return { ok: true, message: `Key works. Summaries will use ${body?.display_name || model}.` };
+  if (res.status === 401) return { ok: false, message: 'Claude rejected this key. Copy it again from platform.claude.com.' };
+  if (res.status === 403) return { ok: false, message: "This key doesn't have permission to use Claude models." };
+  if (res.status === 404) return { ok: false, message: `The key works, but the model "${model}" isn't available to it. Pick another summary model.` };
+  if (res.status === 429) return { ok: true, message: 'Key works (Claude is rate limiting right now, try again shortly).' };
+  return { ok: false, message: `Couldn't check the key: ${body?.error?.message || `HTTP ${res.status}`}` };
+}
+
+module.exports = { summarize, checkKey, parse, SYSTEM };
