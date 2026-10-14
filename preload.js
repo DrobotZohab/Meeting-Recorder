@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('api', {
 
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
+  checkKey: () => ipcRenderer.invoke('settings:checkKey'),
 
   copy: (text) => ipcRenderer.invoke('copy', text),
   openFolder: () => ipcRenderer.invoke('open-folder'),

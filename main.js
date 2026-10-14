@@ -5,7 +5,7 @@ const {
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
-const { summarize } = require('./summarize');
+const { summarize, checkKey } = require('./summarize');
 
 // macOS: let Chromium capture system audio through ScreenCaptureKit (macOS 13+).
 if (process.platform === 'darwin') {
@@ -363,6 +363,7 @@ app.whenReady().then(() => {
     if ('theme' in patch) applyTheme(s.theme);
     return publicSettings();
   });
+  ipcMain.handle('settings:checkKey', () => checkKey({ apiKey: getApiKey(), model: getSettings().claudeModel }));
   ipcMain.handle('copy', (_e, text) => clipboard.writeText(String(text)));
   ipcMain.handle('open-folder', () => {
     fs.mkdirSync(ROOT(), { recursive: true });

@@ -622,11 +622,27 @@ function openSettings() {
   const s = state.settings;
   $('#settings').hidden = false;
   $('#apiKey').value = '';
-  $('#keyState').textContent = s.hasApiKey ? 'A key is saved. Paste a new one to replace it, or save empty to remove it.' : 'No key saved yet.';
+  setKeyState(s.hasApiKey ? 'A key is saved.' : 'No key saved yet.');
+  $('#testKey').hidden = !s.hasApiKey;
   $('#claudeModel').value = s.claudeModel;
   $('#whisperModel').value = s.whisperModel;
   $('#autoSummarize').checked = !!s.autoSummarize;
 }
+function setKeyState(text, kind = '') {
+  const el = $('#keyState');
+  el.textContent = text;
+  el.className = `muted small ${kind}`;
+}
+
+async function testKey() {
+  setKeyState('Checking with Claude...');
+  $('#testKey').hidden = true;
+  const r = await api.checkKey();
+  setKeyState(r.message, r.ok ? 'ok' : 'bad');
+  $('#testKey').hidden = !state.settings.hasApiKey;
+  return r.ok;
+}
+
 function closeSettings() { $('#settings').hidden = true; }
 
 function wireSettings() {
@@ -635,15 +651,22 @@ function wireSettings() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSettings(); closeMenu(); } });
   $('#saveKey').addEventListener('click', async () => {
     const v = $('#apiKey').value.trim();
-    if (v && !v.startsWith('sk-ant-')) { $('#keyState').textContent = 'That does not look like a Claude key (they start with sk-ant-).'; return; }
+    if (v && !v.startsWith('sk-ant-')) { setKeyState("That doesn't look like a Claude key (they start with sk-ant-).", 'bad'); return; }
+    if (!v && !state.settings.hasApiKey) { setKeyState('Paste a key first.', 'bad'); return; }
     state.settings = await api.setSettings({ apiKey: v });
     $('#apiKey').value = '';
-    $('#keyState').textContent = state.settings.hasApiKey ? 'Saved.' : 'Key removed.';
+    if (state.settings.hasApiKey) await testKey();
+    else { setKeyState('Key removed.'); $('#testKey').hidden = true; }
     if (state.meeting) renderMeetingPage();
   });
+  $('#testKey').addEventListener('click', testKey);
+  $('#apiKey').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#saveKey').click(); });
   $('#keyLink').addEventListener('click', (e) => { e.preventDefault(); api.openUrl('https://platform.claude.com/settings/keys'); });
   for (const id of ['claudeModel', 'whisperModel']) {
-    $(`#${id}`).addEventListener('change', async (e) => { state.settings = await api.setSettings({ [id]: e.target.value }); });
+    $(`#${id}`).addEventListener('change', async (e) => {
+      state.settings = await api.setSettings({ [id]: e.target.value });
+      if (id === 'claudeModel' && state.settings.hasApiKey) testKey(); // make sure the key can use the new model
+    });
   }
   $('#autoSummarize').addEventListener('change', async (e) => { state.settings = await api.setSettings({ autoSummarize: e.target.checked }); });
 }

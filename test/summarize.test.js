@@ -33,3 +33,15 @@ const { summarize, parse } = require('../summarize');
   await assert.rejects(summarize({ apiKey: 'x', model: 'm', transcript: 't', fetchImpl: bad }), /rejected/);
   console.log('summarize tests passed');
 })().catch((e) => { console.error(e); process.exit(1); });
+
+// checkKey: maps API answers to plain messages.
+(async () => {
+  const { checkKey } = require('../summarize');
+  const fake = (status, body) => async () => ({ ok: status < 300, status, json: async () => body });
+  assert.equal((await checkKey({ apiKey: 'k', model: 'claude-haiku-5-5', fetchImpl: fake(200, { display_name: 'Claude Haiku 5.5' }) })).ok, true);
+  assert.match((await checkKey({ apiKey: 'k', model: 'm', fetchImpl: fake(401, {}) })).message, /rejected/);
+  assert.match((await checkKey({ apiKey: 'k', model: 'nope', fetchImpl: fake(404, {}) })).message, /isn't available/);
+  assert.match((await checkKey({ apiKey: 'k', model: 'm', fetchImpl: async () => { throw new Error('offline'); } })).message, /internet/);
+  assert.equal((await checkKey({ apiKey: null, model: 'm' })).ok, false);
+  console.log('checkKey tests passed');
+})().catch((e) => { console.error(e); process.exit(1); });
