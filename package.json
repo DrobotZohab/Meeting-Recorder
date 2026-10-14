@@ -1,0 +1,68 @@
+{
+  "name": "meeting-recorder",
+  "productName": "Meetings",
+  "version": "1.0.0",
+  "description": "Record meetings, transcribe them on your computer, and get Claude-written notes.",
+  "main": "main.js",
+  "author": "Zohab",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DrobotZohab/meeting-recorder.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/summarize.test.js",
+    "dist:mac": "electron-builder --mac --arm64",
+    "dist:win": "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "4.3.1"
+  },
+  "devDependencies": {
+    "electron": "44.7.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.zohab.meetings",
+    "productName": "Meetings",
+    "artifactName": "Meetings-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "main.js",
+      "preload.js",
+      "summarize.js",
+      "transcribe-worker.js",
+      "renderer/**",
+      "!**/node_modules/onnxruntime-web/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/**",
+      "**/node_modules/sharp/**",
+      "**/node_modules/@img/**"
+    ],
+    "afterPack": "build/after-pack.js",
+    "publish": [
+      {
+        "provider": "github",
+        "releaseType": "release"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Meetings records your voice during meetings.",
+        "NSAudioCaptureUsageDescription": "Meetings records the other people in your meeting."
+      }
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "shortcutName": "Meetings"
+    }
+  }
+}
