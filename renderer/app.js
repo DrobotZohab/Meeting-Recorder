@@ -525,13 +525,19 @@ function renderMeetingPage(full = false) {
       return mt ? `<span class="ts">${esc(mt[1])}</span>${esc(mt[2])}` : esc(l);
     }).join('\n');
     const wasOpen = $('#transcript')?.open;
-    html += `<details class="toggle" id="transcript"${wasOpen ? ' open' : ''}><summary>${ICON.chev}Transcript</summary>
+    html += `<details class="toggle" id="transcript"${wasOpen ? ' open' : ''}><summary>${ICON.chev}Transcript
+      <button class="text-btn" data-act="copyTranscript">Copy</button></summary>
       <div class="transcript">${lines}</div></details>`;
   }
   body.innerHTML = html;
 
-  body.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => {
+  body.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', (e) => {
     const act = b.dataset.act;
+    if (act === 'copyTranscript') {
+      e.preventDefault(); // don't open/close the toggle
+      copyTranscript();
+      return;
+    }
     if (act === 'settings') openSettings();
     if (act === 'summarize') runProcess(m.id, { transcribe: false });
     if (act === 'transcribe') runProcess(m.id, { transcribe: true });
@@ -564,6 +570,13 @@ function copyNotes() {
   toast('Notes copied');
 }
 
+function copyTranscript() {
+  const m = state.meeting;
+  if (!m?.transcript) return;
+  api.copy(`${m.title} (${fmtDate(m.startedAt)}, ${fmtTime(m.startedAt)})\n\n${m.transcript}`);
+  toast('Transcript copied');
+}
+
 function closeMenu() { const x = $('.menu'); if (x) x.remove(); }
 function toggleMenu() {
   if ($('.menu')) return closeMenu();
@@ -571,6 +584,7 @@ function toggleMenu() {
   const busy = m.status === 'transcribing' || m.status === 'summarizing' || (state.rec && state.rec.id === m.id);
   const menu = h(`<div class="menu">
     <button data-a="copy">${ICON.copy}Copy notes</button>
+    ${m.transcript ? `<button data-a="copyT">${ICON.copy}Copy transcript</button>` : ''}
     ${!busy && m.transcript && state.settings.hasApiKey ? `<button data-a="resum">${ICON.redo}Re-summarize</button>` : ''}
     ${!busy ? `<button data-a="retrans">${ICON.wave}Re-transcribe</button>` : ''}
     <button data-a="show">${ICON.folder}Show in folder</button>
@@ -583,6 +597,7 @@ function toggleMenu() {
     closeMenu();
     const a = b.dataset.a;
     if (a === 'copy') copyNotes();
+    if (a === 'copyT') copyTranscript();
     if (a === 'resum') runProcess(m.id, { transcribe: false });
     if (a === 'retrans') runProcess(m.id, { transcribe: true });
     if (a === 'show') api.show(m.id);

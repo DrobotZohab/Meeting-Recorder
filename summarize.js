@@ -2,7 +2,9 @@
 
 const SYSTEM = `You turn meeting transcripts into clear notes.
 
-The transcript comes from automatic speech recognition. It has timestamps but no speaker names, and it may contain recognition errors. Fix obvious mis-hearings silently. Never invent facts, names, owners, or dates.
+The transcript comes from automatic speech recognition and may contain recognition errors. Fix obvious mis-hearings silently. Never invent facts, names, owners, or dates.
+
+If lines are labeled, "You:" is the person who recorded the meeting (write "you" when referring to them, e.g. owner "you") and "Others:" is everyone else on the call, possibly several people. Use names when someone says them; otherwise refer to "Others" as "the other side" or "someone". If lines are not labeled, there is no speaker information.
 
 Reply in exactly this format:
 
@@ -39,7 +41,7 @@ function parse(text) {
   return { title, summary };
 }
 
-async function summarize({ apiKey, model, transcript, startedAt, durationSec, fetchImpl = fetch }) {
+async function summarize({ apiKey, model, transcript, startedAt, durationSec, labeled = false, fetchImpl = fetch }) {
   const when = startedAt ? new Date(startedAt).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }) : 'unknown';
   const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -54,7 +56,7 @@ async function summarize({ apiKey, model, transcript, startedAt, durationSec, fe
       system: SYSTEM,
       messages: [{
         role: 'user',
-        content: `Meeting started: ${when}\nLength: ${fmtDuration(durationSec)}\n\n<transcript>\n${transcript}\n</transcript>`
+        content: `Meeting started: ${when}\nLength: ${fmtDuration(durationSec)}\nSpeaker labels: ${labeled ? 'yes (You / Others)' : 'no'}\n\n<transcript>\n${transcript}\n</transcript>`
       }]
     })
   });

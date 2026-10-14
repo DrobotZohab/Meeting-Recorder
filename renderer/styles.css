@@ -239,6 +239,8 @@ details.toggle > summary {
 details.toggle > summary::-webkit-details-marker { display: none; }
 details.toggle > summary svg { transition: transform .15s; color: var(--muted); }
 details.toggle[open] > summary svg { transform: rotate(90deg); }
+details.toggle > summary .text-btn { font-size: 13px; font-weight: 400; margin-left: 8px; opacity: 0; transition: opacity .15s; }
+details.toggle > summary:hover .text-btn, details.toggle[open] > summary .text-btn { opacity: 1; }
 .transcript { white-space: pre-wrap; color: var(--text); padding: 8px 0 0 22px; line-height: 1.7; font-size: 14px; user-select: text; }
 .transcript .ts { color: var(--faint); font-variant-numeric: tabular-nums; margin-right: 6px; }
 

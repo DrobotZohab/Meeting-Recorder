@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, ipcMain, session, desktopCapturer, shell,
-  systemPreferences, clipboard, protocol, net, safeStorage, utilityProcess, dialog
+  systemPreferences, clipboard, protocol, net, safeStorage, utilityProcess, dialog, nativeTheme
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS = {
   whisperModel: 'Xenova/whisper-base.en',
   claudeModel: 'claude-haiku-5-5',
   autoSummarize: true,
+  theme: 'dark',
   apiKeyEnc: null
 };
 
@@ -65,6 +66,15 @@ const meetingDir = (id) => {
 };
 const metaPath = (id) => path.join(meetingDir(id), 'meeting.json');
 const audioPath = (id) => path.join(meetingDir(id), 'audio.webm');
+// Stereo copy for transcription: left = your mic, right = other people.
+const tracksPath = (id) => path.join(meetingDir(id), 'tracks.webm');
+const THEME_BG = { dark: '#191919', light: '#ffffff' };
+function applyTheme(theme) {
+  nativeTheme.themeSource = ['dark', 'light', 'system'].includes(theme) ? theme : 'dark';
+  const bg = nativeTheme.shouldUseDarkColors ? THEME_BG.dark : THEME_BG.light;
+  if (win && !win.isDestroyed()) win.setBackgroundColor(bg);
+  return bg;
+}
 
 function loadMeeting(id) { return readJSON(metaPath(id), null); }
 function saveMeeting(m) { writeJSON(metaPath(m.id), m); notify('meeting-updated', m); return m; }
@@ -104,7 +114,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 540,
     title: 'Meetings',
-    backgroundColor: '#ffffff',
+    backgroundColor: applyTheme(getSettings().theme),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -128,9 +138,11 @@ let rec = null; // { id, stream }
 function finishRecording() {
   return new Promise((resolve) => {
     if (!rec) return resolve(null);
-    const { id, stream, started } = rec;
+    const { id, streams, started } = rec;
     rec = null;
-    stream.end(() => {
+    let left = streams.length;
+    streams.forEach((st) => st.end(() => { if (--left === 0) done(); }));
+    function done() {
       const endedAt = new Date();
       const m = patchMeeting(id, {
         endedAt: endedAt.toISOString(),
@@ -138,7 +150,7 @@ function finishRecording() {
         status: 'recorded'
       });
       resolve(m);
-    });
+    }
   });
 }
 
@@ -178,28 +190,34 @@ function getWorker() {
   return worker;
 }
 
-function transcribe(pcmFile, onProgress) {
+function transcribe(tracks, onProgress) {
   return new Promise((resolve, reject) => {
     const job = ++jobSeq;
     pending.set(job, { resolve, reject, onProgress });
     getWorker().postMessage({
-      job, pcmFile, model: getSettings().whisperModel, cacheDir: MODELS()
+      job, tracks, model: getSettings().whisperModel, cacheDir: MODELS()
     });
   });
 }
 
 const processing = new Set();
-async function processMeeting(id, pcm) {
+// tracks: [{ label: 'You' | 'Others' | null, pcm: Float32Array }]
+async function processMeeting(id, tracks) {
   if (processing.has(id)) return loadMeeting(id);
   processing.add(id);
-  const pcmFile = path.join(meetingDir(id), 'audio.pcm');
+  const pcmFiles = [];
   try {
     // 1) transcript
     let m = loadMeeting(id);
-    if (pcm) {
-      fs.writeFileSync(pcmFile, Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength));
+    if (tracks && tracks.length) {
+      const jobs = tracks.map((t, i) => {
+        const file = path.join(meetingDir(id), `track-${i}.pcm`);
+        fs.writeFileSync(file, Buffer.from(t.pcm.buffer, t.pcm.byteOffset, t.pcm.byteLength));
+        pcmFiles.push(file);
+        return { label: t.label || null, pcmFile: file };
+      });
       saveMeeting({ ...m, status: 'transcribing', error: null });
-      const text = await transcribe(pcmFile, (p) => notify('progress', { id, ...p }));
+      const text = await transcribe(jobs, (p) => notify('progress', { id, ...p }));
       m = saveMeeting({ ...loadMeeting(id), transcript: text });
     }
     m = loadMeeting(id);
@@ -217,7 +235,8 @@ async function processMeeting(id, pcm) {
       model: getSettings().claudeModel,
       transcript: m.transcript,
       startedAt: m.startedAt,
-      durationSec: m.durationSec
+      durationSec: m.durationSec,
+      labeled: /^\[[\d:]+\] (You|Others):/m.test(m.transcript)
     });
     const cur = loadMeeting(id);
     return saveMeeting({
@@ -234,7 +253,7 @@ async function processMeeting(id, pcm) {
     return saveMeeting({ ...cur, status: cur.transcript ? 'transcribed' : 'recorded', error: err.message });
   } finally {
     processing.delete(id);
-    fs.rmSync(pcmFile, { force: true });
+    pcmFiles.forEach((f) => fs.rmSync(f, { force: true }));
   }
 }
 
@@ -244,7 +263,7 @@ app.whenReady().then(() => {
     const u = new URL(req.url);
     const id = decodeURIComponent(u.pathname.replace(/^\//, ''));
     try {
-      const file = audioPath(id);
+      const file = u.hostname === 'tracks' ? tracksPath(id) : audioPath(id);
       if (!fs.existsSync(file)) return new Response('Not found', { status: 404 });
       return net.fetch(pathToFileURL(file).toString(), { headers: req.headers })
         .catch(() => new Response('Not found', { status: 404 }));
@@ -287,9 +306,9 @@ app.whenReady().then(() => {
     return true;
   });
   ipcMain.handle('meetings:show', (_e, id) => shell.showItemInFolder(audioPath(id)));
-  ipcMain.handle('meetings:process', (_e, id, pcm) => processMeeting(id, pcm || null));
+  ipcMain.handle('meetings:process', (_e, id, tracks) => processMeeting(id, tracks || null));
 
-  ipcMain.handle('rec:start', async () => {
+  ipcMain.handle('rec:start', async (_e, sources = {}) => {
     await finishRecording();
     const started = new Date();
     const id = newId(started);
@@ -303,21 +322,24 @@ app.whenReady().then(() => {
       status: 'recording',
       summary: null,
       transcript: null,
-      error: null
+      error: null,
+      sources: { mic: !!sources.mic, others: !!sources.others }
     });
-    rec = { id, started, stream: fs.createWriteStream(audioPath(id)) };
+    const audio = fs.createWriteStream(audioPath(id));
+    const tracks = fs.createWriteStream(tracksPath(id));
+    rec = { id, started, streams: [audio, tracks], byKind: { audio, tracks } };
     return loadMeeting(id);
   });
-  ipcMain.handle('rec:chunk', (_e, bytes) => new Promise((resolve, reject) => {
-    if (!rec) return resolve();
-    rec.stream.write(Buffer.from(bytes), (err) => (err ? reject(err) : resolve()));
+  ipcMain.handle('rec:chunk', (_e, kind, bytes) => new Promise((resolve, reject) => {
+    if (!rec || !rec.byKind[kind]) return resolve();
+    rec.byKind[kind].write(Buffer.from(bytes), (err) => (err ? reject(err) : resolve()));
   }));
   ipcMain.handle('rec:stop', () => finishRecording());
 
   ipcMain.handle('settings:get', () => publicSettings());
   ipcMain.handle('settings:set', (_e, patch) => {
     const s = getSettings();
-    const allowed = ['consentMode', 'sayMessage', 'chatMessage', 'whisperModel', 'claudeModel', 'autoSummarize'];
+    const allowed = ['consentMode', 'sayMessage', 'chatMessage', 'whisperModel', 'claudeModel', 'autoSummarize', 'theme'];
     for (const k of allowed) if (k in patch) s[k] = patch[k];
     if ('apiKey' in patch) {
       const key = String(patch.apiKey || '').trim();
@@ -325,6 +347,7 @@ app.whenReady().then(() => {
         : (safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(key) : Buffer.from(key)).toString('base64');
     }
     writeJSON(SETTINGS(), s);
+    if ('theme' in patch) applyTheme(s.theme);
     return publicSettings();
   });
   ipcMain.handle('copy', (_e, text) => clipboard.writeText(String(text)));
