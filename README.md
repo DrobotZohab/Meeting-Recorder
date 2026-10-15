@@ -1,12 +1,14 @@
-# Meetings
+# Liqa
 
-A Notion-style meeting recorder for Windows and Mac. Records your mic and everyone else in the call, transcribes on your computer for free, and has Claude write the notes.
+<img src="build/icon.png" width="96" alt="">
+
+*Liqa* (لقاء) is Arabic for "meeting." A Notion-style meeting recorder for Windows and Mac. Records your mic and everyone else in the call, transcribes on your computer for free, and has Claude write the notes.
 
 ## Download
 
 Go to **Releases** on the right side of this repo and grab:
-- **Windows:** `Meetings-x.x.x-win-x64.exe`
-- **Mac (Apple Silicon):** `Meetings-x.x.x-mac-arm64.dmg`
+- **Windows:** `Liqa-x.x.x-win-x64.exe`
+- **Mac (Apple Silicon):** `Liqa-x.x.x-mac-arm64.dmg`
 
 ### Mac first launch
 The app isn't signed with a paid Apple certificate, so macOS blocks it the first time:
@@ -18,6 +20,9 @@ Needs macOS 13 or newer. Intel Macs: run from source (below).
 
 ### Windows first launch
 SmartScreen may say "Windows protected your PC". Click **More info > Run anyway**.
+
+## Coming from "Meetings"
+The app used to be called Meetings. Your recordings and settings carry over. On Mac, delete the old **Meetings** app from Applications, then paste your Claude API key in Settings once more and re-allow Screen Recording for **Liqa**.
 
 ## Use it
 1. **Settings:** paste your Claude API key (from platform.claude.com).

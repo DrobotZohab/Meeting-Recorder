@@ -76,7 +76,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.v.outputs.version }}
-          name: Meetings ${{ steps.v.outputs.version }}
+          name: Liqa ${{ steps.v.outputs.version }}
           make_latest: true
           files: installers/*
           body: |

@@ -20,6 +20,10 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { stream: true, supportFetchAPI: true, standard: true, secure: true } }
 ]);
 
+// The app was called "Meetings" before it was renamed Liqa. Keep using that data folder
+// so settings and the downloaded speech model carry over.
+app.setPath('userData', path.join(app.getPath('appData'), 'Meetings'));
+
 // ---------- paths & storage ----------
 const ROOT = () => path.join(app.getPath('documents'), 'Meeting Recordings');
 const SETTINGS = () => path.join(app.getPath('userData'), 'settings.json');
@@ -58,7 +62,7 @@ function getApiKey() {
 }
 function publicSettings() {
   const { apiKeyEnc, ...rest } = getSettings();
-  return { ...rest, hasApiKey: !!apiKeyEnc };
+  return { ...rest, hasApiKey: !!(apiKeyEnc && getApiKey()) };
 }
 
 const meetingDir = (id) => {
@@ -114,7 +118,7 @@ function createWindow() {
     height: 760,
     minWidth: 760,
     minHeight: 540,
-    title: 'Meetings',
+    title: 'Liqa',
     backgroundColor: applyTheme(getSettings().theme),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
@@ -125,6 +129,7 @@ function createWindow() {
     }
   });
   win.setMenuBarVisibility(false);
+  if (process.platform !== 'darwin') win.setIcon(path.join(__dirname, 'renderer', 'icon.png'));
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https:\/\//.test(url)) shell.openExternal(url);

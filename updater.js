@@ -26,7 +26,7 @@ const newer = (a, b) => {
 async function checkMac() {
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Meetings-app' }
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Liqa-app' }
     });
     if (!res.ok) return;
     const rel = await res.json();

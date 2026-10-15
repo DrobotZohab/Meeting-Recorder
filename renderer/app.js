@@ -239,14 +239,14 @@ async function openSystemAudio() {
     if (!sys.getAudioTracks().length) {
       sys.getTracks().forEach((t) => t.stop());
       return { error: mac
-        ? 'macOS gave no audio. Open System Settings > Privacy & Security > Screen & System Audio Recording, remove Meetings with "-", then quit and reopen the app and allow it again.'
+        ? 'macOS gave no audio. Open System Settings > Privacy & Security > Screen & System Audio Recording, remove Liqa with "-", then quit and reopen the app and allow it again.'
         : 'Windows returned no audio from your speakers. Check that your sound output device is on and not muted.' };
     }
     return { stream: sys };
   } catch (e) {
     console.error('system audio', e);
     if (mac) {
-      return { error: 'macOS blocked it. Allow Meetings under System Settings > Privacy & Security > Screen & System Audio Recording (remove and re-add it after updating the app), then quit and reopen.' };
+      return { error: 'macOS blocked it. Allow Liqa under System Settings > Privacy & Security > Screen & System Audio Recording (remove and re-add it after updating the app), then quit and reopen.' };
     }
     return { error: `Couldn't capture computer audio (${e.name || 'error'}). Try restarting the app.` };
   }
@@ -297,7 +297,7 @@ async function testSystemAudio() {
   } else {
     out.className = 'sys-test bad';
     out.textContent = state.platform === 'darwin'
-      ? "Heard nothing. Make sure something was actually playing. If it was, macOS is blocking it: re-add Meetings under Screen & System Audio Recording, then reopen the app."
+      ? "Heard nothing. Make sure something was actually playing. If it was, macOS is blocking it: re-add Liqa under Screen & System Audio Recording, then reopen the app."
       : "Heard nothing. Make sure something was actually playing and your volume isn't muted, then test again.";
   }
 }
