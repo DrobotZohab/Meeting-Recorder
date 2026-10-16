@@ -1,7 +1,7 @@
 {
   "name": "meeting-recorder",
   "productName": "Liqa",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Record meetings, transcribe them on your computer, and get Claude-written notes.",
   "main": "main.js",
   "author": "Zohab",
